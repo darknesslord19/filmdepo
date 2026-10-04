@@ -1,9 +1,3 @@
-plugins {
-    id("com.android.library")
-    kotlin("android")
-    id("com.lagradost.cloudstream3.gradle")
-}
-
 version = 1
 
 cloudstream {
@@ -15,6 +9,6 @@ cloudstream {
     iconUrl = "https://tavsiyefilmizle.net/favicon.ico"
 }
 
-dependencies {
-    implementation("com.lagradost:cloudstream3:pre-release")
+android {
+    namespace = "com.darkneslord.tavsiyefilmtest"
 }
