@@ -1,0 +1,38 @@
+name: Build CloudStream CS3
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.12'
+
+      - name: Build CS3
+        run: gradle make --stacktrace
+
+      - name: Show generated CS3
+        run: find . -type f -name '*.cs3' -print
+
+      - name: Upload CS3
+        uses: actions/upload-artifact@v4
+        with:
+          name: TavsiyeFilmTest-CS3
+          path: '**/*.cs3'
+          if-no-files-found: error
