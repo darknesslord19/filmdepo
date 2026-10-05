@@ -1,0 +1,22 @@
+[
+  {
+    "iconUrl": null,
+    "apiVersion": 1,
+    "repositoryUrl": "https://github.com/darknesslord19/filmdepo",
+    "fileSize": 12229,
+    "status": 1,
+    "language": "tr",
+    "authors": [
+      "Darknes"
+    ],
+    "tvTypes": [
+      "Movie",
+      "TvSeries"
+    ],
+    "version": 1,
+    "internalName": "TavsiyeFilmTest",
+    "description": "Darknes",
+    "url": "https://raw.githubusercontent.com/darknesslord19/filmdepo/builds/TavsiyeFilmTest.cs3",
+    "name": "TavsiyeFilmTest"
+  }
+]
