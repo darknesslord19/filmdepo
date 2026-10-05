@@ -1,0 +1,8 @@
+{
+  "name": "filmdepo",
+  "description": "Cloudstream eklenti",
+  "manifestVersion": 1,
+  "pluginLists": [
+    "https://raw.githubusercontent.com/darknesslord19/filmdepo/main/plugins.json"
+  ]
+}
