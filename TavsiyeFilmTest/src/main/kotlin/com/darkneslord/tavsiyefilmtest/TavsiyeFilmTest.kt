@@ -100,14 +100,18 @@ class TavsiyeFilmTest : MainAPI() {
     }
 
     override suspend fun loadLinks(
-        data: String,
-        isCasting: Boolean,
-        subtitleCallback: (SubtitleFile) -> Unit,
-        callback: (ExtractorLink) -> Unit
-    ): Boolean {
-        // Bilerek yayın/stream URL'si çıkarılmıyor.
-        return false
+    data: String,
+    isCasting: Boolean,
+    subtitleCallback: (SubtitleFile) -> Unit,
+    callback: (ExtractorLink) -> Unit
+): Boolean {
+    val doc = app.get(data).document
+    doc.select(".video-content iframe").forEach { iframe ->
+        val src = iframe.attr("src").ifBlank { iframe.attr("data-src") }
+        if (src.isNotBlank()) loadExtractor(fixUrl(src), data, subtitleCallback, callback)
     }
+    return true
+}
 
     private fun toSearchResponse(title: String, url: String, poster: String?): SearchResponse {
         val normalized = title.replace(Regex("\\s+"), " ").trim()
