@@ -1,2 +1,16 @@
-rootProject.name = "TavsiyeFilmTest"
-include("TavsiyeFilmTest")
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+rootProject.name = "tavsiyefilmizlenetProvider"
+include(":tavsiyefilmizlenetProvider")

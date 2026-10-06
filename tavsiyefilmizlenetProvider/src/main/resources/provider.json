@@ -1,0 +1,11 @@
+{
+  "name": "V81 tavsiyefilmizlenet",
+  "internalName": "tavsiyefilmizlenetProvider",
+  "version": 1,
+  "description": "Generated from a V81 verified HLS result",
+  "language": "tr",
+  "tvTypes": [
+    "Movie"
+  ],
+  "iconUrl": ""
+}

@@ -1,47 +1,22 @@
-name: Build CloudStream CS3
+name: Build generated CS3
 
 on:
+  workflow_dispatch:
   push:
     branches: [ main, master ]
-  workflow_dispatch:
-
-permissions:
-  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Java 17
-        uses: actions/setup-java@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
-          cache: gradle
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+      - run: gradle :tavsiyefilmizlenetProvider:assembleRelease --no-daemon
+      - uses: actions/upload-artifact@v4
         with:
-          gradle-version: '8.12'
-
-      - name: Build CS3
-        run: gradle make --stacktrace
-
-      - name: Show generated CS3
-        run: find . -type f -name '*.cs3' -print
-
-      - name: Upload CS3
-        uses: actions/upload-artifact@v4
-        with:
-          name: TavsiyeFilmTest-CS3
-          path: '**/*.cs3'
-          if-no-files-found: error
-
-      - name: Publish CS3 to Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "build-${{ github.run_number }}" $(find . -type f -name '*.cs3') --title "CS3 build ${{ github.run_number }}" --notes "Otomatik derleme ${{ github.sha }}" --target "${{ github.sha }}"
+          name: generated-cs3
+          path: tavsiyefilmizlenetProvider/build/outputs/**
