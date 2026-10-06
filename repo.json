@@ -1,8 +1,8 @@
 {
-  "name": "filmdepo",
-  "description": "Cloudstream eklenti",
+  "name": "TavsiyeFilmizle Deposu",
+  "description": "TavsiyeFilmizle CloudStream eklentisi",
   "manifestVersion": 1,
   "pluginLists": [
-    "https://raw.githubusercontent.com/darknesslord19/filmdepo/main/plugins.json"
+    "https://raw.githubusercontent.com/KULLANICI/DEPO/builds/plugins.json"
   ]
 }
