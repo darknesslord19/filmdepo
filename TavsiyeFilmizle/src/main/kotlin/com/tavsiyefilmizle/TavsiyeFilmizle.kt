@@ -4,6 +4,7 @@ import android.util.Base64
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
 import org.json.JSONObject
+import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import java.net.URI
 import java.net.URLEncoder
@@ -12,11 +13,9 @@ import javax.crypto.Cipher
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
-// Bu dosya cloudstream_pydroid_tam.py tarafindan otomatik uretildi.
-// Notlar: sayfalama dogrulanamadi
-class Tavsiyefilmizle : MainAPI() {
+class TavsiyeFilmizle : MainAPI() {
     override var mainUrl = "https://tavsiyefilmizle.net"
-    override var name = "Tavsiyefilmizle"
+    override var name = "TavsiyeFilmizle"
     override var lang = "tr"
     override val hasMainPage = true
     override val supportedTypes = setOf(TvType.Movie)
@@ -25,13 +24,21 @@ class Tavsiyefilmizle : MainAPI() {
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
     private val baseHeaders = mapOf("User-Agent" to ua, "Accept" to "*/*")
 
+    // Film sayfalari /filmler10/film-adi/ seklinde (rapordan dogrulandi)
+    private val filmPath = "/filmler10/"
+
     // ---------------------------------------------------------------- ANA SAYFA
+    // Kategori adresleri raporlarda gorulen gercek adreslerdir. Sayfalama: /page/2/
     override val mainPage = mainPageOf(
         "$mainUrl/" to "Son Eklenenler",
-        "$mainUrl/category/aksiyon-filmleri/" to "Aksiyon Filmleri",
-        "$mainUrl/category/netflix-filmleri-izle/" to "Netflix Filmleri",
+        "$mainUrl/category/trendler/" to "Trendler",
+        "$mainUrl/category/yerli-filmler/" to "Yerli Filmler",
+        "$mainUrl/category/aksiyon-filmleri/" to "Aksiyon",
+        "$mainUrl/category/gerilim-filmleri/" to "Gerilim",
+        "$mainUrl/category/gizem-filmleri/" to "Gizem",
         "$mainUrl/category/hint-filmleri/" to "Hint Filmleri",
-        "$mainUrl/category/yerli-filmler/" to "Yerli Filmler"
+        "$mainUrl/category/netflix-filmleri-izle/" to "Netflix Filmleri",
+        "$mainUrl/category/mutlaka-izlenmesi-gerekenler/" to "Mutlaka İzlenmesi Gerekenler"
     )
 
     private fun pageUrl(base: String, page: Int): String =
@@ -39,24 +46,35 @@ class Tavsiyefilmizle : MainAPI() {
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val doc = app.get(pageUrl(request.data, page), headers = baseHeaders).document
-        val items = doc.select("div.movie-preview.existing_item.res_item").mapNotNull { it.toSearchResult() }.distinctBy { it.url }
+        val items = doc.toResults()
         return newHomePageResponse(request.name, items, hasNext = items.isNotEmpty())
     }
 
+    // Kart secicisi sabit degil: /filmler10/ linki + icinde afis olan her baglanti bir karttir.
+    // Lazy-load afisler icin data-src / data-litespeed-src once denenir.
+    private fun Document.toResults(): List<SearchResponse> =
+        select("a[href*=$filmPath]:has(img)").mapNotNull { it.toSearchResult() }.distinctBy { it.url }
+
     private fun Element.toSearchResult(): SearchResponse? {
-        val a = selectFirst("a[href*=/filmler10/]") ?: return null
-        val href = fixUrlNull(a.attr("href")) ?: return null
-        val title = ((selectFirst("img")?.attr("alt")) ?: "").replace(Regex("""\s*(film(i)?\s+)?izle\s*$""", RegexOption.IGNORE_CASE), "").trim()
+        val href = fixUrlNull(attr("href")) ?: return null
+        if (!href.contains(filmPath)) return null
+        val img = selectFirst("img")
+        val rawTitle = attr("title")
+            .ifBlank { img?.attr("alt").orEmpty() }
+            .ifBlank { text() }
+            .ifBlank { parent()?.selectFirst("h1,h2,h3,h4,.title,.name")?.text().orEmpty() }
+        val title = rawTitle.replace(Regex("""\s*(film(i)?\s+)?izle\s*$""", RegexOption.IGNORE_CASE), "").trim()
         if (title.isBlank()) return null
-        val poster = fixUrlNull(selectFirst("img")?.attr("data-src"))
-        return newMovieSearchResponse(title, href, TvType.Movie) { this.posterUrl = poster }
+        val poster = listOf("data-src", "data-lazy-src", "data-litespeed-src", "data-original", "src")
+            .map { img?.attr(it).orEmpty() }
+            .firstOrNull { it.isNotBlank() && !it.startsWith("data:") }
+        return newMovieSearchResponse(title, href, TvType.Movie) { this.posterUrl = fixUrlNull(poster) }
     }
 
-    // ---------------------------------------------------------------- ARAMA
+    // ---------------------------------------------------------------- ARAMA (WordPress: /?s=)
     override suspend fun search(query: String): List<SearchResponse> {
         val q = URLEncoder.encode(query, "UTF-8")
-        val doc = app.get("$mainUrl/?s=$q", headers = baseHeaders).document
-        return doc.select("div.movie-preview.existing_item.res_item").mapNotNull { it.toSearchResult() }.distinctBy { it.url }
+        return app.get("$mainUrl/?s=$q", headers = baseHeaders).document.toResults()
     }
 
     // ---------------------------------------------------------------- DETAY
@@ -66,11 +84,17 @@ class Tavsiyefilmizle : MainAPI() {
             ?.replace(Regex("""\s*(film(i)?\s+)?izle\s*(\|.*)?$""", RegexOption.IGNORE_CASE), "")?.trim()
             ?.takeIf { it.isNotBlank() } ?: return null
         val poster = fixUrlNull(doc.selectFirst("meta[property=og:image]")?.attr("content"))
-        val plot = doc.selectFirst("meta[property=og:description]")?.attr("content")?.trim()
+        val plot = (doc.selectFirst(
+            "div[class*=ozet],div[class*=aciklama],div[class*=description],div[class*=plot],div[class*=konu],div[class*=summary]"
+        )?.text()?.takeIf { it.length >= 40 }
+            ?: doc.selectFirst("meta[property=og:description]")?.attr("content"))?.trim()
         val year = Regex("""\b(19|20)\d{2}\b""").find(title)?.value?.toIntOrNull()
-        val tags = doc.select("div.Breadcrumb a[href*=/category/]").map { it.text().trim() }.filter { it.isNotBlank() }.distinct()
-        val actors = emptyList<String>()
-        val duration = Regex("""(\d{2,3})\s*(?:dk|dakika|min)\b""", RegexOption.IGNORE_CASE).find(doc.text())?.groupValues?.get(1)?.toIntOrNull()
+        val tags = doc.select("a[href*=/category/]")
+            .filter { a -> a.parents().none { it.tagName() in setOf("nav", "header", "footer", "aside") } }
+            .map { it.text().trim() }.filter { it.isNotBlank() }.distinct()
+        val actors = doc.select("a[href*=/oyuncu/]").map { it.text().trim() }.filter { it.isNotBlank() }.distinct()
+        val duration = Regex("""(\d{2,3})\s*(?:dk|dakika|min)\b""", RegexOption.IGNORE_CASE)
+            .find(doc.text())?.groupValues?.get(1)?.toIntOrNull()
         return newMovieLoadResponse(title, url, TvType.Movie, url) {
             this.posterUrl = poster
             this.plot = plot
@@ -103,6 +127,7 @@ class Tavsiyefilmizle : MainAPI() {
     }
 
     // iframe -> embed (Referer: film sayfasi) -> bePlayer(ARG1, JSON) -> AES coz -> video_location (master HLS)
+    // Gercek raporlarla dogrulandi: parola = ARG1, CryptoJS EVP/MD5, AES-256-CBC
     private suspend fun loadBePlayer(
         embed: String,
         referer: String,
@@ -130,7 +155,8 @@ class Tavsiyefilmizle : MainAPI() {
             }
         }
 
-        // Master istegi Referer(embed)+Origin ister, segmentler User-Agent ister. URL oturuma bagli: her oynatmada bastan coz.
+        // Master istegi Referer(embed)+Origin ister, segmentler (baska host) User-Agent ister.
+        // URL oturuma/IP'ye bagli: sabit yazma, her oynatmada zinciri bastan calistir.
         val streamHeaders = mapOf(
             "User-Agent" to ua,
             "Accept" to "*/*",
@@ -168,8 +194,7 @@ class Tavsiyefilmizle : MainAPI() {
 
     private fun decryptBePlayer(arg1: String, json: String): String? = try {
         val o = JSONObject(json)
-        val passphrase = arg1
-        val (key, iv) = evpKeyIv(passphrase.toByteArray(Charsets.UTF_8), hexToBytes(o.getString("s")))
+        val (key, iv) = evpKeyIv(arg1.toByteArray(Charsets.UTF_8), hexToBytes(o.getString("s")))
         val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
         cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(key, "AES"), IvParameterSpec(iv))
         String(cipher.doFinal(Base64.decode(o.getString("ct"), Base64.DEFAULT)), Charsets.UTF_8)
